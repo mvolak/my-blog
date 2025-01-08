@@ -1,162 +1,94 @@
-'use client'
+// app/posts/create/page.tsx
+'use client';
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { supabase } from '@/lib/supabase'
-
-type Category = {
-  id: number
-  name: string
-  slug: string
-}
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function CreatePost() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    description: '',
-    category_id: '',
-    slug: ''
-  })
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const supabase = createClientComponentClient();
 
-  useEffect(() => {
-    fetchCategories()
-  }, [])
-
-  const fetchCategories = async () => {
-    const { data } = await supabase
-      .from('categories')
-      .select('*')
-    if (data) setCategories(data)
-  }
-
-  // Generate slug from title
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)+/g, '')
-  }
-
-  // Handle title change and automatically generate slug
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const title = e.target.value
-    setFormData({
-      ...formData,
-      title,
-      slug: generateSlug(title)
-    })
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (!user) {
-        throw new Error('You must be logged in to create a post')
+      if (!session) {
+        throw new Error('You must be logged in to create a post.');
       }
 
-      // Create the post with slug
-      const { data, error } = await supabase
+      const readTime = Math.ceil(description.split(' ').length / 200) + ' min read';
+
+      const { error: insertError } = await supabase
         .from('posts')
         .insert([
           {
-            title: formData.title,
-            content: formData.content,
-            description: formData.description,
-            category_id: parseInt(formData.category_id), // Convert string to number
-            slug: formData.slug,
-            user_id: user.id,
-          }
-        ])
-        .select('id')
-        .single()
+            title,
+            description,
+            user_id: session.user.id,
+            author: session.user.email,
+            read_time: readTime,
+          },
+        ]);
 
-      if (error) throw error
+      if (insertError) throw insertError;
 
-      router.push(`/posts/${data.id}`)
-      router.refresh()
-
+      router.push('/dashboard');
     } catch (error: any) {
-      alert(error.message)
+      setError(error.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-2xl mx-auto p-6">
       <Card>
         <CardHeader>
           <CardTitle>Create New Post</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="text-red-600 text-sm">{error}</div>
+            )}
+            
+            <div>
+              <label htmlFor="title" className="block text-sm font-medium mb-1">
+                Title
+              </label>
               <Input
                 id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 required
-                value={formData.title}
-                onChange={handleTitleChange}
                 placeholder="Enter post title"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Select
-                value={formData.category_id.toString()}
-                onValueChange={(value) => setFormData({...formData, category_id: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem 
-                      key={category.id} 
-                      value={category.id.toString()}
-                    >
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                required
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                placeholder="Brief description of your post"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="content">Content</Label>
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium mb-1">
+                Content
+              </label>
               <Textarea
-                id="content"
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 required
-                value={formData.content}
-                onChange={(e) => setFormData({...formData, content: e.target.value})}
-                placeholder="Write your post content here..."
-                className="min-h-[200px]"
+                placeholder="Write your post content..."
+                rows={10}
               />
             </div>
 
@@ -165,13 +97,11 @@ export default function CreatePost() {
                 type="button"
                 variant="outline"
                 onClick={() => router.back()}
+                disabled={loading}
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={loading}
-              >
+              <Button type="submit" disabled={loading}>
                 {loading ? 'Creating...' : 'Create Post'}
               </Button>
             </div>
@@ -179,5 +109,5 @@ export default function CreatePost() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

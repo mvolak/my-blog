@@ -1,6 +1,6 @@
 // app/dashboard/page.tsx
-import BlogLayout from '@/components/BlogLayout';
 import { Navbar } from '@/components/Navbar';
+import BlogLayout from '@/components/BlogLayout';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -16,14 +16,7 @@ export default async function Dashboard() {
   return (
     <div>
       <Navbar />
-      <main className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">
-          Welcome, {session.user.email}
-        </h1>
-        {/* Your dashboard content */}
-        <p>Your dashboard content </p>
-        <BlogLayout/>
-      </main>
+      <BlogLayout />
     </div>
   );
 }
